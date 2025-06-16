@@ -1,86 +1,102 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MAX WebApp Downloader</title>
   <script src="https://st.max.ru/js/max-web-app.js"></script>
-  <title>MAX WebApp Core</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    label { display: block; margin-top: 12px; font-weight: bold; }
+    input { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 4px; }
+    button { margin-top: 16px; padding: 10px 20px; font-size: 1rem; }
+    #log { margin-top: 20px; background: #f4f4f4; padding: 12px; border-radius: 6px; white-space: pre-wrap; }
+  </style>
 </head>
 <body>
+
+<h2>📥 Скачать файл через MAX WebApp</h2>
+
+<form id="downloadForm">
+  <label for="url">Ссылка на файл (HTTPS):</label>
+  <input type="url" id="url" placeholder="https://example.com/file.pdf" required />
+
+  <label for="fileName">Имя файла при сохранении:</label>
+  <input type="text" id="fileName" placeholder="file.pdf" required />
+
+  <button type="submit">Скачать</button>
+</form>
+
+<div id="log">⏳ Готово к загрузке...</div>
+
 <script>
-(async () => {
-  const log = (...args) => console.log('[MAX]', ...args);
+(function () {
+  const logEl = document.getElementById('log');
+  const form = document.getElementById('downloadForm');
+
+  const log = msg => {
+    console.log('[MAX]', msg);
+    logEl.textContent = msg;
+  };
 
   if (!window.WebApp) {
-    console.warn('⚠️ Запустите через платформу MAX');
+    log('❌ WebApp SDK не найден. Открой через платформу MAX.');
     return;
   }
 
-  // 1. Init
-  const initData = window.WebApp.initData;
-  const data = window.WebApp.initDataUnsafe;
-  log('initData:', initData);
-  log('User:', data?.user);
   window.WebApp.ready();
 
-  // 2. Events
-  window.WebApp.onEvent(event => {
-    if (event.type === 'contact_received') {
-      log('📞 Контакт получен:', event.contact.phone_number);
-    } else if (event.status === 'downloading') {
-      log('✅ Скачивание началось');
-    } else if (event.status === 'cancelled') {
-      log('⚠️ Скачивание отменено');
-    } else if (event.error) {
-      log('❌ Ошибка:', event.error.code);
-    } else {
-      log('Событие:', event);
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const url = document.getElementById('url').value.trim();
+    const fileName = document.getElementById('fileName').value.trim();
+
+    if (!url.startsWith('https://')) {
+      log('❌ URL должен начинаться с https://');
+      return;
     }
-  });
 
-  // 3. Примеры вызовов:
+    if (!fileName) {
+      log('❌ Укажите имя файла');
+      return;
+    }
 
-  // Скачивание файла
-  const fileUrl = 'https://example.com/sample.pdf';
-  const fileName = 'Пример.pdf';
-  const requestId = 'req-' + Date.now();
+    const requestId = 'req-' + Date.now();
 
-  try {
-    window.WebApp.downloadFile({
-      requestId,
-      url: fileUrl,
-      file_name: fileName
+    try {
+      window.WebApp.downloadFile({
+        requestId,
+        url,
+        file_name: fileName
+      });
+      log(`📤 Запрос на скачивание файла: ${fileName}`);
+    } catch (err) {
+      log('❌ Ошибка вызова downloadFile(): ' + err.message);
+      return;
+    }
+
+    window.WebApp.onEvent(event => {
+      if (!event || event.requestId !== requestId) return;
+
+      if (event.status === 'downloading') {
+        log(`✅ Скачивание началось: ${fileName}`);
+      } else if (event.status === 'cancelled') {
+        log(`⚠️ Скачивание отменено пользователем`);
+      } else if (event.error) {
+        const code = event.error.code;
+        if (code === 'client.download_file.download_failed') {
+          log('❌ Ошибка загрузки: download_failed');
+        } else if (code === 'client.download_file.invalid_params') {
+          log('❌ Ошибка загрузки: invalid_params (неверный URL или имя файла)');
+        } else {
+          log(`❌ Неизвестная ошибка: ${code}`);
+        }
+      }
     });
-    log(`⏬ Запрос на скачивание: ${fileName}`);
-  } catch (e) {
-    log('Ошибка при скачивании:', e.message);
-  }
-
-  // Открытие внешней ссылки
-  try {
-    window.WebApp.openLink('https://max.ru');
-    log('🌐 Ссылка открыта');
-  } catch (e) {
-    log('Ошибка открытия ссылки:', e.message);
-  }
-
-  // Запрос телефона
-  try {
-    window.WebApp.requestContact();
-    log('📲 Запрос контакта');
-  } catch (e) {
-    log('Ошибка запроса контакта:', e.message);
-  }
-
-  // Включение/отключение подтверждения
-  window.WebApp.enableClosingConfirmation();
-  log('⚠️ Подтверждение выхода включено');
-
-  // Закрытие (через 15 секунд)
-  setTimeout(() => {
-    log('❌ Закрытие приложения');
-    window.WebApp.close();
-  }, 15000);
+  });
 })();
 </script>
+
 </body>
 </html>
