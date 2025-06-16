@@ -1,174 +1,86 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF‑8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>MAX WebApp Full</title>
+  <meta charset="UTF-8">
   <script src="https://st.max.ru/js/max-web-app.js"></script>
-  <style>
-    body {
-      margin: 0;
-      font-family: sans-serif;
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
-    header, footer {
-      background: #0078D4;
-      color: white;
-      text-align: center;
-      padding: 12px;
-    }
-    main {
-      flex: 1;
-      padding: 16px;
-    }
-    .btn {
-      padding: 10px 16px;
-      margin: 4px 0;
-      width: 100%;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 1rem;
-    }
-    .btn-primary {
-      background: #0078D4;
-      color: white;
-    }
-    .btn-secondary {
-      background: #e0e0e0;
-    }
-    .info {
-      margin: 12px 0;
-      padding: 10px;
-      background: #f5f5f5;
-      border-radius: 6px;
-      white-space: pre-wrap;
-    }
-    input {
-      padding: 8px;
-      margin-bottom: 8px;
-      width: 100%;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
-  </style>
+  <title>MAX WebApp Core</title>
 </head>
 <body>
-
-<header><h1>MAX WebApp</h1></header>
-
-<main>
-  <div class="info" id="status">⏳ Инициализация...</div>
-
-  <input type="url" id="urlInput" placeholder="https://example.com/file.pdf">
-  <input type="text" id="fileNameInput" placeholder="Имя файла для скачивания">
-
-  <button class="btn btn-primary" onclick="downloadFile()">📥 Скачать файл</button>
-  <button class="btn btn-secondary" onclick="requestContact()">📱 Получить телефон</button>
-  <button class="btn btn-secondary" onclick="openLink()">🌐 Открыть max.ru</button>
-  <button class="btn btn-secondary" onclick="enableConfirm()">✅ Включить подтверждение закрытия</button>
-  <button class="btn btn-secondary" onclick="disableConfirm()">🚫 Выключить подтверждение</button>
-  <button class="btn btn-primary" onclick="closeApp()">❌ Закрыть</button>
-</main>
-
-<footer><small>© MAX WebApp</small></footer>
-
 <script>
-  const status = document.getElementById('status');
+(async () => {
+  const log = (...args) => console.log('[MAX]', ...args);
 
-  function log(msg) {
-    status.textContent = msg;
-    console.log('[LOG]', msg);
+  if (!window.WebApp) {
+    console.warn('⚠️ Запустите через платформу MAX');
+    return;
   }
+
+  // 1. Init
+  const initData = window.WebApp.initData;
+  const data = window.WebApp.initDataUnsafe;
+  log('initData:', initData);
+  log('User:', data?.user);
+  window.WebApp.ready();
+
+  // 2. Events
+  window.WebApp.onEvent(event => {
+    if (event.type === 'contact_received') {
+      log('📞 Контакт получен:', event.contact.phone_number);
+    } else if (event.status === 'downloading') {
+      log('✅ Скачивание началось');
+    } else if (event.status === 'cancelled') {
+      log('⚠️ Скачивание отменено');
+    } else if (event.error) {
+      log('❌ Ошибка:', event.error.code);
+    } else {
+      log('Событие:', event);
+    }
+  });
+
+  // 3. Примеры вызовов:
+
+  // Скачивание файла
+  const fileUrl = 'https://example.com/sample.pdf';
+  const fileName = 'Пример.pdf';
+  const requestId = 'req-' + Date.now();
 
   try {
-    if (!window.WebApp) {
-      log('❌ Это приложение должно запускаться внутри MAX');
-      throw new Error('WebApp bridge is not доступен');
-    }
-
-    const user = window.WebApp.initDataUnsafe?.user;
-    log(user ? `👋 Привет, ${user.first_name}!` : '👋 Добро пожаловать!');
-
-    window.WebApp.ready();
-
-    window.WebApp.onEvent(e => {
-      if (e.type === 'contact_received') {
-        log(`📞 Телефон: ${e.contact.phone_number}`);
-      } else if (e.status === 'downloading') {
-        log(`✅ Скачивание началось`);
-      } else if (e.status === 'cancelled') {
-        log(`⚠️ Скачивание отменено`);
-      } else if (e.error) {
-        log(`❌ Ошибка: ${e.error.code}`);
-      }
+    window.WebApp.downloadFile({
+      requestId,
+      url: fileUrl,
+      file_name: fileName
     });
-
+    log(`⏬ Запрос на скачивание: ${fileName}`);
   } catch (e) {
-    log('Ошибка инициализации: ' + e.message);
+    log('Ошибка при скачивании:', e.message);
   }
 
-  function closeApp() {
-    if (window.WebApp?.close) {
-      window.WebApp.close();
-    }
+  // Открытие внешней ссылки
+  try {
+    window.WebApp.openLink('https://max.ru');
+    log('🌐 Ссылка открыта');
+  } catch (e) {
+    log('Ошибка открытия ссылки:', e.message);
   }
 
-  function requestContact() {
-    try {
-      window.WebApp.requestContact();
-    } catch (e) {
-      log('requestContact недоступен');
-    }
+  // Запрос телефона
+  try {
+    window.WebApp.requestContact();
+    log('📲 Запрос контакта');
+  } catch (e) {
+    log('Ошибка запроса контакта:', e.message);
   }
 
-  function openLink() {
-    try {
-      window.WebApp.openLink('https://max.ru');
-    } catch (e) {
-      log('Ошибка при открытии ссылки');
-    }
-  }
+  // Включение/отключение подтверждения
+  window.WebApp.enableClosingConfirmation();
+  log('⚠️ Подтверждение выхода включено');
 
-  function enableConfirm() {
-    window.WebApp.enableClosingConfirmation();
-    log('⚠️ Включено подтверждение закрытия');
-  }
-
-  function disableConfirm() {
-    window.WebApp.disableClosingConfirmation();
-    log('👌 Выключено подтверждение');
-  }
-
-  function downloadFile() {
-    const url = document.getElementById('urlInput').value.trim();
-    const fileName = document.getElementById('fileNameInput').value.trim();
-    const requestId = 'req-' + Date.now();
-
-    if (!/^https:\/\//.test(url)) {
-      log('❌ URL должен начинаться с https://');
-      return;
-    }
-
-    if (!fileName) {
-      log('❌ Укажите имя файла');
-      return;
-    }
-
-    try {
-      window.WebApp.downloadFile({
-        requestId,
-        url,
-        file_name: fileName
-      });
-      log(`📥 Запрос на скачивание файла: ${fileName}`);
-    } catch (e) {
-      log('❌ Ошибка при вызове downloadFile: ' + e.message);
-    }
-  }
+  // Закрытие (через 15 секунд)
+  setTimeout(() => {
+    log('❌ Закрытие приложения');
+    window.WebApp.close();
+  }, 15000);
+})();
 </script>
-
 </body>
 </html>
