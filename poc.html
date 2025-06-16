@@ -3,110 +3,172 @@
 <head>
   <meta charset="UTF‑8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>MAX WebApp with Download</title>
+  <title>MAX WebApp Full</title>
   <script src="https://st.max.ru/js/max-web-app.js"></script>
   <style>
-    body { margin:0; font-family:sans-serif; display:flex; flex-direction:column; min-height:100vh; }
-    header, footer { background:#0078D4; color:#fff; text-align:center; padding:12px; }
-    main { flex:1; padding:16px; }
-    .btn { padding:10px 16px; margin:4px; border:none; border-radius:4px; cursor:pointer; }
-    .btn-primary { background:#0078D4; color:#fff; }
-    .btn-secondary { background:#e0e0e0; }
-    .info { margin:8px 0; padding:8px; background:#f0f0f0; border-radius:4px; white-space:pre-wrap; }
-    .input-row { display:flex; flex-direction:column; margin:8px 0; }
-    label { margin-bottom:4px; font-weight:bold; }
-    input { padding:8px; border:1px solid #ccc; border-radius:4px; }
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    header, footer {
+      background: #0078D4;
+      color: white;
+      text-align: center;
+      padding: 12px;
+    }
+    main {
+      flex: 1;
+      padding: 16px;
+    }
+    .btn {
+      padding: 10px 16px;
+      margin: 4px 0;
+      width: 100%;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .btn-primary {
+      background: #0078D4;
+      color: white;
+    }
+    .btn-secondary {
+      background: #e0e0e0;
+    }
+    .info {
+      margin: 12px 0;
+      padding: 10px;
+      background: #f5f5f5;
+      border-radius: 6px;
+      white-space: pre-wrap;
+    }
+    input {
+      padding: 8px;
+      margin-bottom: 8px;
+      width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
 
-  <header><h1>MAX WebApp Demo</h1></header>
+<header><h1>MAX WebApp</h1></header>
 
-  <main>
-    <div class="info" id="userInfo">Загрузка данных...</div>
+<main>
+  <div class="info" id="status">⏳ Инициализация...</div>
 
-    <div class="input-row">
-      <label for="urlInput">Ссылка на файл (https):</label>
-      <input id="urlInput" type="url" placeholder="https://example.com/file.pdf" required>
-    </div>
+  <input type="url" id="urlInput" placeholder="https://example.com/file.pdf">
+  <input type="text" id="fileNameInput" placeholder="Имя файла для скачивания">
 
-    <div class="input-row">
-      <label for="fileNameInput">Имя файла:</label>
-      <input id="fileNameInput" type="text" placeholder="file.pdf" required>
-    </div>
+  <button class="btn btn-primary" onclick="downloadFile()">📥 Скачать файл</button>
+  <button class="btn btn-secondary" onclick="requestContact()">📱 Получить телефон</button>
+  <button class="btn btn-secondary" onclick="openLink()">🌐 Открыть max.ru</button>
+  <button class="btn btn-secondary" onclick="enableConfirm()">✅ Включить подтверждение закрытия</button>
+  <button class="btn btn-secondary" onclick="disableConfirm()">🚫 Выключить подтверждение</button>
+  <button class="btn btn-primary" onclick="closeApp()">❌ Закрыть</button>
+</main>
 
-    <button class="btn btn-primary" id="downloadBtn">📥 Скачать файл</button>
+<footer><small>© MAX WebApp</small></footer>
 
-    <hr>
+<script>
+  const status = document.getElementById('status');
 
-    <button class="btn btn-secondary" id="closeBtn">Закрыть приложение</button>
-    <button class="btn btn-secondary" id="contactBtn">Получить телефон</button>
-    <button class="btn btn-secondary" id="linkBtn">Открыть ссылку</button>
-    <button class="btn btn-secondary" id="confirmBtn">Подтверждение при закрытии</button>
-    <button class="btn btn-secondary" id="disableConfirmBtn">Отключить подтверждение</button>
+  function log(msg) {
+    status.textContent = msg;
+    console.log('[LOG]', msg);
+  }
 
-    <div class="info" id="logArea">Готово.</div>
-  </main>
+  try {
+    if (!window.WebApp) {
+      log('❌ Это приложение должно запускаться внутри MAX');
+      throw new Error('WebApp bridge is not доступен');
+    }
 
-  <footer><small>© MAX WebApp 2025</small></footer>
+    const user = window.WebApp.initDataUnsafe?.user;
+    log(user ? `👋 Привет, ${user.first_name}!` : '👋 Добро пожаловать!');
 
-  <script>
-    const infoEl = document.getElementById('userInfo');
-    const logEl = document.getElementById('logArea');
-
-    const initData = window.WebApp.initData;
-    const data = window.WebApp.initDataUnsafe;
-
-    infoEl.textContent = JSON.stringify(data, null, 2);
     window.WebApp.ready();
 
-    // Обработка кнопок
-    document.getElementById('closeBtn').onclick = () => window.WebApp.close();
-    document.getElementById('contactBtn').onclick = () => window.WebApp.requestContact();
-    document.getElementById('linkBtn').onclick = () => window.WebApp.openLink('https://max.ru');
-    document.getElementById('confirmBtn').onclick = () => window.WebApp.enableClosingConfirmation();
-    document.getElementById('disableConfirmBtn').onclick = () => window.WebApp.disableClosingConfirmation();
-
-    // Обработка события получения контакта
     window.WebApp.onEvent(e => {
       if (e.type === 'contact_received') {
-        log(`📱 Телефон: ${e.contact.phone_number}`);
+        log(`📞 Телефон: ${e.contact.phone_number}`);
+      } else if (e.status === 'downloading') {
+        log(`✅ Скачивание началось`);
+      } else if (e.status === 'cancelled') {
+        log(`⚠️ Скачивание отменено`);
+      } else if (e.error) {
+        log(`❌ Ошибка: ${e.error.code}`);
       }
     });
 
-    // === DOWNLOAD FILE ===
-    const downloadBtn = document.getElementById('downloadBtn');
+  } catch (e) {
+    log('Ошибка инициализации: ' + e.message);
+  }
 
-    downloadBtn.onclick = () => {
-      const url = document.getElementById('urlInput').value.trim();
-      const fileName = document.getElementById('fileNameInput').value.trim();
-      const requestId = 'req-' + Date.now();
-
-      if (!/^https:\/\//.test(url) || !fileName) {
-        log('❌ Некорректные параметры');
-        return;
-      }
-
-      log(`⏬ Запрос на скачивание: ${fileName}`);
-
-      window.WebApp.downloadFile({ requestId, url, file_name: fileName });
-
-      window.WebApp.onEvent(e => {
-        if (e.requestId !== requestId) return;
-
-        if (e.status === 'downloading') {
-          log(`✅ Скачивание началось: ${fileName}`);
-        } else if (e.status === 'cancelled') {
-          log(`⚠️ Загрузка отменена пользователем`);
-        } else if (e.error) {
-          log(`❌ Ошибка: ${e.error.code}`);
-        }
-      });
-    };
-
-    function log(msg) {
-      logEl.textContent = msg;
+  function closeApp() {
+    if (window.WebApp?.close) {
+      window.WebApp.close();
     }
-  </script>
+  }
+
+  function requestContact() {
+    try {
+      window.WebApp.requestContact();
+    } catch (e) {
+      log('requestContact недоступен');
+    }
+  }
+
+  function openLink() {
+    try {
+      window.WebApp.openLink('https://max.ru');
+    } catch (e) {
+      log('Ошибка при открытии ссылки');
+    }
+  }
+
+  function enableConfirm() {
+    window.WebApp.enableClosingConfirmation();
+    log('⚠️ Включено подтверждение закрытия');
+  }
+
+  function disableConfirm() {
+    window.WebApp.disableClosingConfirmation();
+    log('👌 Выключено подтверждение');
+  }
+
+  function downloadFile() {
+    const url = document.getElementById('urlInput').value.trim();
+    const fileName = document.getElementById('fileNameInput').value.trim();
+    const requestId = 'req-' + Date.now();
+
+    if (!/^https:\/\//.test(url)) {
+      log('❌ URL должен начинаться с https://');
+      return;
+    }
+
+    if (!fileName) {
+      log('❌ Укажите имя файла');
+      return;
+    }
+
+    try {
+      window.WebApp.downloadFile({
+        requestId,
+        url,
+        file_name: fileName
+      });
+      log(`📥 Запрос на скачивание файла: ${fileName}`);
+    } catch (e) {
+      log('❌ Ошибка при вызове downloadFile: ' + e.message);
+    }
+  }
+</script>
+
 </body>
 </html>
