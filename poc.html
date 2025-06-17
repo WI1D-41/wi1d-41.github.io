@@ -1,6 +1,5 @@
 <script src="https://st.max.ru/js/max-web-app.js"></script>
 <script>
-    WebApp.downloadFile('data:text/html;base64,PHNjcmlwdD5hbGVydCgnZXhlY3V0aW9uIGluIGZpbGUnKTwvc2NyaXB0Pg==','test.png');
     const html = "<img src=x onerror=alert(1)>";
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
