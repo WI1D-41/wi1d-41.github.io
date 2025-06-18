@@ -15,7 +15,7 @@ WebApp.downloadFile({
 });
 </script>
 <script>
-const blob = new Blob(["<script>alert('Blob XSS')</script"], { type: "text/html" });
+const blob = new Blob(["<img src=x onerror=alert(1)>"], { type: "text/html" });
 const blobUrl = URL.createObjectURL(blob);
 WebApp.downloadFile({
   url: blobUrl,
