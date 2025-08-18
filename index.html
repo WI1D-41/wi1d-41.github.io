@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Демо: Биометрическая аутентификация (MAX Bridge)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#0b0f17; --card:#121826; --muted:#8aa0b4; --accent:#5fd4ff; --ok:#37d67a; --err:#ff6b6b; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: #e8f0f8; }
+    header { padding:16px 20px; border-bottom:1px solid #1f2937; position: sticky; top:0; background: rgba(11,15,23,0.8); backdrop-filter: blur(8px); z-index:10;}
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    .grid { display:grid; grid-template-columns: 1fr 320px; gap:16px; }
+    .card { background: var(--card); border: 1px solid #1f2937; border-radius: 14px; padding: 14px; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap: wrap;}
+    input, select, textarea { width:100%; background:#0e1422; color:#e8f0f8; border:1px solid #263242; border-radius:10px; padding:10px 12px; }
+    label { font-size: 12px; color: var(--muted); }
+    .btn { background:#1f2d3d; border:1px solid #2b3a51; color:#e8f0f8; padding:10px 14px; border-radius:12px; cursor:pointer; }
+    .btn.primary { background: linear-gradient(90deg, #1b5cff, #00b4ff); border-color: transparent; }
+    .btn.success { background:#113d2b; border-color:#1f7a52; }
+    .btn.warn { background:#3d1111; border-color:#7a1f1f; }
+    .method { border-left: 3px solid #263242; padding-left:10px; margin-bottom:12px; }
+    .small { font-size:12px; color: var(--muted); }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 12px; background:#0b1220; padding:2px 6px; border-radius:6px; border:1px solid #1f2b3d;}
+    .log { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; white-space: pre-wrap; word-break: break-word; background:#0a0f18; border-radius: 10px; border:1px solid #1f2b3d; padding:12px; min-height: 160px; }
+    .pill { border:1px solid #2b3a51; padding:4px 8px; border-radius: 999px; font-size: 12px; color: var(--muted); }
+    .flex { display:flex; gap: 8px; align-items:center; }
+    .space { height: 10px; }
+    .divider { height:1px; background:#1f2937; margin: 8px 0; }
+    .muted { color: var(--muted); }
+    .ok { color: var(--ok); }
+    .err { color: var(--err); }
+    details { border:1px solid #263242; border-radius: 10px; padding: 8px 10px; background:#0e1422;}
+    summary { cursor: pointer; }
+    .method-card { margin-bottom: 12px; }
+    .param { margin-bottom: 8px; }
+    .tag { font-size: 11px; color: var(--muted); }
+    .grid2 { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+    pre.state { background:#0a0f18; border:1px solid #1f2b3d; border-radius: 10px; padding: 10px; overflow:auto; max-height: 260px; }
+  </style>
+  <!-- MAX Bridge -->
+  <script src="https://st.max.ru/js/max-web-app.js"></script>
+</head>
+<body>
+  <header>
+    <div class="wrap row" style="justify-content: space-between;">
+      <div class="row">
+        <div style="font-weight:600;">Биометрия · MAX Bridge</div>
+        <div class="pill" id="env-pill">ENV</div>
+        <div class="pill" id="bridge-pill">bridge:–</div>
+      </div>
+      <div class="row">
+        <button class="btn" id="settingsBtn">Настройки</button>
+        <button class="btn primary" id="runFlowBtn">Запустить полный флоу</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap grid">
+    <main class="card">
+      <div class="method-card">
+        <div class="method row" style="justify-content: space-between;">
+          <div>
+            <div><b>MAX Bridge · BiometricManager</b></div>
+            <div class="small muted">Вызовы init → requestAccess → updateBiometricToken → authenticate → openSettings</div>
+          </div>
+          <div class="row">
+            <span class="pill">window.WebApp.BiometricManager</span>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div>
+            <label>biometricToken (для updateBiometricToken)</label>
+            <input id="bm-token" placeholder="введите токен (пустая строка — удалить)" />
+          </div>
+          <div>
+            <label>Причина (опционально, если поддерживается)</label>
+            <input id="bm-reason" placeholder="например: Войдите по Face ID" />
+          </div>
+        </div>
+
+        <div class="space"></div>
+        <div class="row">
+          <button class="btn" id="bm-init">init()</button>
+          <button class="btn" id="bm-request-access">requestAccess()</button>
+          <button class="btn" id="bm-update-token">updateBiometricToken()</button>
+          <button class="btn" id="bm-auth">authenticate()</button>
+          <button class="btn warn" id="bm-open-settings">openSettings()</button>
+          <button class="btn success" id="bm-refresh">Обновить состояние</button>
+        </div>
+        <div class="space"></div>
+        <details open>
+          <summary>Состояние BiometricManager</summary>
+          <pre class="state" id="bm-state">{}</pre>
+        </details>
+      </div>
+
+      <div id="methods" class="card" style="margin-top:12px;"></div>
+    </main>
+    <aside class="card">
+      <div class="row" style="justify-content: space-between;">
+        <div style="font-weight:600;">Консоль</div>
+        <button class="btn" id="clearLog">Очистить</button>
+      </div>
+      <div class="space"></div>
+      <div id="log" class="log"></div>
+      <div class="space"></div>
+      <details>
+        <summary>Системная информация</summary>
+        <div class="small" id="sys"></div>
+      </details>
+    </aside>
+  </div>
+
+  <!-- Settings modal -->
+  <div id="modal" style="display:none; position: fixed; inset:0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center;">
+    <div class="card" style="width: 680px; max-width: 94vw;">
+      <div class="row" style="justify-content: space-between;">
+        <div style="font-weight:600;">Настройки</div>
+        <button class="btn warn" id="closeModal">Закрыть</button>
+      </div>
+      <div class="divider"></div>
+      <div class="row">
+        <div style="flex:1;">
+          <label>API Base URL (для ваших серверных методов, опционально)</label>
+          <input id="apiBase" placeholder="https://api.example.com" />
+        </div>
+        <div style="flex:1;">
+          <label>Bearer Token (опционально)</label>
+          <input id="bearer" placeholder="jwt..." />
+        </div>
+      </div>
+      <div class="row">
+        <div style="flex:1;">
+          <label>userId (по умолчанию)</label>
+          <input id="userId" placeholder="u_..." />
+        </div>
+        <div style="flex:1;">
+          <label>override queryId (опционально)</label>
+          <input id="queryId" placeholder="..." />
+        </div>
+      </div>
+      <div class="space"></div>
+      <button class="btn success" id="saveSettings">Сохранить</button>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
