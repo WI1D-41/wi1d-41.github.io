@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MAX MiniApp · Biometric (Settings Fix)</title>
+  <title>MAX MiniApp · Biometric (Spec-Exact)</title>
   <script src="https://st.max.ru/js/max-web-app.js"></script>
   <style>
     :root{--bg:#0b0f17;--card:#121826;--muted:#8aa0b4}
@@ -17,16 +17,16 @@
     input{width:100%;background:#0e1422;color:#e8f0f8;border:1px solid #263242;border-radius:10px;padding:10px 12px}
     .pill{border:1px solid #2b3a51;color:var(--muted);border-radius:999px;padding:4px 8px;font-size:12px}
     .pre{white-space:pre-wrap;word-break:break-word;background:#0a0f18;border:1px solid #1f2b3d;border-radius:10px;padding:12px;min-height:96px}
-    .muted{color:var(--muted);font-size:12px}
     .h{font-weight:700;margin:6px 0 10px}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="row" style="justify-content:space-between">
-      <div class="h">Биометрия · MAX</div>
+      <div class="h">Биометрия · MAX (по спецификации)</div>
       <div class="row">
         <span class="pill" id="pill-bridge">bridge: –</span>
+        <span class="pill" id="pill-type">type: –</span>
         <span class="pill" id="pill-access">access: –</span>
       </div>
     </div>
@@ -35,13 +35,13 @@
       <div class="row" style="gap:8px">
         <button class="btn primary" id="btn-flow">Флоу</button>
         <button class="btn" id="btn-init">init()</button>
-        <button class="btn" id="btn-req">requestAccess()</button>
+        <button class="btn" id="btn-request">requestAccess()</button>
         <button class="btn" id="btn-auth">authenticate()</button>
         <button class="btn" id="btn-settings">openSettings()</button>
       </div>
-      <div class="row" style="gap:8px; margin-top:8px">
+      <div class="row" style="gap:8px;margin-top:8px">
         <input id="in-token" placeholder="biometricToken (пусто — удалить)" value="demo-token" />
-        <button class="btn" id="btn-save">updateBiometricToken()</button>
+        <button class="btn" id="btn-update">updateBiometricToken()</button>
       </div>
     </div>
 
@@ -51,7 +51,6 @@
         <button class="btn" id="btn-refresh">Обновить</button>
       </div>
       <pre class="pre" id="state">{}</pre>
-      <div class="muted" id="diag"></div>
     </div>
 
     <div class="card">
@@ -66,114 +65,83 @@
   <script>
   (function(){
     const q=(s,r=document)=>r.querySelector(s);
-    const logEl=q('#log'), stateEl=q('#state'), diagEl=q('#diag');
-    const pillBridge=q('#pill-bridge'), pillAccess=q('#pill-access');
+    const log=q('#log'), stateEl=q('#state');
+    const pillBridge=q('#pill-bridge'), pillType=q('#pill-type'), pillAccess=q('#pill-access');
     const WebApp=window.WebApp; const BM=WebApp && WebApp.BiometricManager;
+
+    // Сообщаем клиенту, что миниапп готов
     try{ WebApp && WebApp.ready && WebApp.ready(); }catch(e){}
+
     pillBridge.textContent='bridge: '+(BM?'present':'none');
 
-    const addLog=(m)=>{ const ts=new Date().toISOString().replace('T',' ').slice(0,19); logEl.textContent+=`[${ts}] ${m}\n`; logEl.scrollTop=logEl.scrollHeight; };
-    const callMaybeAsync=async(fn)=>{ const r=fn(); return (r && typeof r.then==='function')? await r : r; };
-    const race=async(promise, ms)=>{ let t; const timer=new Promise((_,rej)=>{ t=setTimeout(()=>rej(new Error('timeout_'+ms)), ms);}); try{ return await Promise.race([promise, timer]); } finally{ clearTimeout(t);} };
-    const disableDuring=async(btns, fn)=>{ const arr=Array.isArray(btns)?btns:[btns]; arr.forEach(b=>b&&(b.disabled=true)); try{ return await fn(); } finally{ arr.forEach(b=>b&&(b.disabled=false)); } };
-    const getState=()=>{
+    const logLn=(m)=>{ const ts=new Date().toISOString().replace('T',' ').slice(0,19); log.textContent+=`[${ts}] ${m}\n`; log.scrollTop=log.scrollHeight; };
+    const asMaybe=async(fn)=>{ const r=fn(); return (r && typeof r.then==='function')? await r : r; };
+
+    const readState=()=>{
       if(!BM) return { error:'BiometricManager недоступен (откройте в MAX)' };
-      const s={}; ['isInited','isBiometricAvailable','biometricType','deviceId','isAccessRequested','isAccessGranted','isBiometricTokenSaved'].forEach(k=>{
+      const s={};
+      ['isInited','isBiometricAvailable','biometricType','deviceId','isAccessRequested','isAccessGranted','isBiometricTokenSaved'].forEach(k=>{
         try{ s[k]=BM[k]; }catch{ s[k]=undefined; }
-      });
-      // diagnostics
-      diagEl.textContent='methods: '+JSON.stringify({
-        init: typeof (BM&&BM.init),
-        requestAccess: typeof (BM&&BM.requestAccess),
-        authenticate: typeof (BM&&BM.authenticate),
-        updateBiometricToken: typeof (BM&&BM.updateBiometricToken),
-        openSettings: typeof (BM&&BM.openSettings)
       });
       return s;
     };
     const refresh=()=>{
-      const s=getState();
+      const s=readState();
       stateEl.textContent=JSON.stringify(s,null,2);
+      const t=Array.isArray(s.biometricType)?s.biometricType.join(','):String(s.biometricType||'');
+      pillType.textContent='type: '+(t||'–');
       pillAccess.textContent='access: '+(s.isAccessGranted?'granted':(s.isAccessRequested?'requested':'none'));
       return s;
     };
     const ensureInit=async()=>{
-      if(!BM){ addLog('❗ BiometricManager недоступен'); return false; }
+      if(!BM){ logLn('❗ BiometricManager недоступен'); return false; }
       if(!BM.isInited){
-        try{ await callMaybeAsync(()=>BM.init()); addLog('ℹ️ init() выполнен автоматически'); }
-        catch(e){ addLog('❌ init() ошибка: '+String(e)); refresh(); return false; }
+        try{ await asMaybe(()=>BM.init()); logLn('ℹ️ init() выполнен автоматически'); }
+        catch(e){ logLn('❌ init() ошибка: '+String(e)); refresh(); return false; }
       }
       return true;
     };
 
-    const btnFlow=q('#btn-flow'), btnInit=q('#btn-init'), btnReq=q('#btn-req'), btnAuth=q('#btn-auth');
-    const btnSettings=q('#btn-settings'), btnSave=q('#btn-save'), btnRefresh=q('#btn-refresh'), btnClear=q('#btn-clear');
+    const btnFlow=q('#btn-flow'), btnInit=q('#btn-init'), btnRequest=q('#btn-request'), btnAuth=q('#btn-auth');
+    const btnSettings=q('#btn-settings'), btnUpdate=q('#btn-update'), btnRefresh=q('#btn-refresh'), btnClear=q('#btn-clear');
     const inToken=q('#in-token');
 
-    btnClear.onclick=()=>logEl.textContent='';
+    btnClear.onclick=()=>log.textContent='';
     btnRefresh.onclick=refresh;
 
-    btnInit.onclick=()=>disableDuring(btnInit, async()=>{
-      if(!BM) return addLog('❗ BiometricManager недоступен');
-      try{ await callMaybeAsync(()=>BM.init()); addLog('✅ init()'); } catch(e){ addLog('❌ init() '+String(e)); }
+    btnInit.onclick=async()=>{
+      if(!BM) return logLn('❗ BiometricManager недоступен');
+      try{ await asMaybe(()=>BM.init()); logLn('✅ init()'); } catch(e){ logLn('❌ init() '+String(e)); }
       refresh();
-    });
-
-    btnReq.onclick=()=>disableDuring(btnReq, async()=>{
+    };
+    btnRequest.onclick=async()=>{
       if(!await ensureInit()) return;
-      addLog('↪️ requestAccess()');
-      let timedOut=false;
-      try{ await race(callMaybeAsync(()=>BM.requestAccess()), 6000); addLog('✅ requestAccess() завершён'); }
-      catch(e){ timedOut=String(e).includes('timeout_'); addLog(timedOut?'⏳ requestAccess() timeout':'❌ requestAccess() '+String(e)); }
-      const after=refresh();
-      if(timedOut || !after.isAccessGranted){
-        addLog('⚠️ Открываю настройки MAX для выдачи доступа…');
-        await openSettingsRobust();
-      }
-    });
-
-    btnSave.onclick=()=>disableDuring(btnSave, async()=>{
-      if(!await ensureInit()) return;
-      const token=inToken.value;
-      try{ const r=await callMaybeAsync(()=>BM.updateBiometricToken(token)); addLog('✅ updateBiometricToken → '+JSON.stringify(r)); }
-      catch(e){ addLog('❌ updateBiometricToken() '+String(e)); }
+      try{ await asMaybe(()=>BM.requestAccess()); logLn('✅ requestAccess()'); } catch(e){ logLn('❌ requestAccess() '+String(e)); }
       refresh();
-    });
-
-    btnAuth.onclick=()=>disableDuring(btnAuth, async()=>{
+    };
+    btnUpdate.onclick=async()=>{
       if(!await ensureInit()) return;
-      try{ const r=await callMaybeAsync(()=>BM.authenticate()); addLog('✅ authenticate() → '+JSON.stringify(r)); }
-      catch(e){ addLog('❌ authenticate() '+String(e)); }
+      try{ const r=await asMaybe(()=>BM.updateBiometricToken(inToken.value)); logLn('✅ updateBiometricToken → '+JSON.stringify(r)); } catch(e){ logLn('❌ updateBiometricToken() '+String(e)); }
       refresh();
-    });
+    };
+    btnAuth.onclick=async()=>{
+      if(!await ensureInit()) return;
+      try{ const r=await asMaybe(()=>BM.authenticate()); logLn('✅ authenticate() → '+JSON.stringify(r)); } catch(e){ logLn('❌ authenticate() '+String(e)); }
+      refresh();
+    };
+    btnSettings.onclick=async()=>{
+      if(!BM) return logLn('❗ BiometricManager недоступен');
+      try{ await asMaybe(()=>BM.openSettings()); logLn('ℹ️ openSettings() вызвано (клиент может закрыть миниапп)'); } catch(e){ logLn('❌ openSettings() '+String(e)); }
+      refresh();
+    };
 
-    async function openSettingsRobust(){
-      // 1) native method if exists
-      if(BM && typeof BM.openSettings==='function'){
-        try{
-          addLog('→ BiometricManager.openSettings()');
-          await callMaybeAsync(()=>BM.openSettings());
-          addLog('ℹ️ openSettings вызван (клиент должен закрыть миниапп)');
-          return;
-        }catch(e){
-          addLog('❌ openSettings() '+String(e));
-        }
-      } else {
-        addLog('⚠️ openSettings недоступен (typeof='+typeof (BM&&BM.openSettings)+') — вероятно старая версия клиента MAX');
-      }
-      // 2) Fallback: показать чёткую инструкцию
-      alert('Откройте: Профиль → Приватность → Доступ к биометрии → Разрешить для этого мини‑приложения. Затем вернитесь и повторите.');
-    }
-
-    btnSettings.onclick=()=>disableDuring(btnSettings, openSettingsRobust);
-
-    btnFlow.onclick=()=>disableDuring([btnFlow,btnInit,btnReq,btnSave,btnAuth], async()=>{
+    btnFlow.onclick=async()=>{
       await btnInit.onclick();
-      await btnReq.onclick();
-      const s2=refresh();
-      if(!s2.isBiometricTokenSaved) await btnSave.onclick();
+      await btnRequest.onclick();
+      const s=refresh();
+      if(!s.isBiometricTokenSaved) await btnUpdate.onclick();
       await btnAuth.onclick();
-    });
+    };
 
     refresh();
   })();
