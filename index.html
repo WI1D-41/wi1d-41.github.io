@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MAX MiniApp · BiometricManager (Fingerprint)</title>
-  <!-- Подключение MAX Bridge -->
+  <title>MAX MiniApp · BiometricManager (Fingerprint) — fixed</title>
+  <!-- MAX Bridge -->
   <script src="https://st.max.ru/js/max-web-app.js"></script>
   <style>
     :root { --bg:#0b0f17; --card:#121826; --muted:#8aa0b4; --ok:#37d67a; --err:#ff6b6b; }
@@ -17,15 +17,13 @@
     .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .col2 { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
     .btn { background:#1f2d3d; border:1px solid #2b3a51; color:#e8f0f8; padding:10px 14px; border-radius:12px; cursor:pointer; }
+    .btn[disabled] { opacity:.5; cursor:not-allowed; }
     .btn.primary { background: linear-gradient(90deg, #1b5cff, #00b4ff); border:none; }
     .btn.warn { background:#3d1111; border:1px solid #7a1f1f; }
-    .btn.success { background:#113d2b; border:1px solid #1f7a52; }
     label { font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
     input { width:100%; background:#0e1422; color:#e8f0f8; border:1px solid #263242; border-radius:10px; padding:10px 12px; }
     .pre { white-space: pre-wrap; word-break: break-word; background:#0a0f18; border:1px solid #1f2b3d; border-radius:10px; padding:12px; min-height:140px; }
     .small { font-size:12px; color:var(--muted); }
-    .ok { color: var(--ok); }
-    .err { color: var(--err); }
     details { border:1px solid #263242; border-radius:10px; padding:8px 10px; background:#0e1422; }
     summary { cursor: pointer; }
   </style>
@@ -79,7 +77,7 @@
         <summary>Состояние</summary>
         <pre id="state" class="pre">{}</pre>
         <div class="small">
-          Подсказка: если <b>biometricType</b> не содержит <code>fingerprint</code>, клиент может не поддерживать отпечаток; для Android тип всегда <code>["unknown"]</code> по спецификации.
+          На Android <code>biometricType</code> может быть <code>["unknown"]</code> — это нормально. Если доступ ранее был отклонён, диалог не появится, используйте <b>openSettings()</b>.
         </div>
       </details>
     </div>
@@ -106,20 +104,25 @@
       const WebApp = window.WebApp;
       const BM = WebApp && WebApp.BiometricManager;
 
-      // Сообщим, что миниапп готов (если поддерживается)
       try { WebApp && WebApp.ready && WebApp.ready(); } catch (e) {}
 
       pillBridge.textContent = 'bridge: ' + (BM ? 'present' : 'none');
 
       const addLog = (msg) => {
         const ts = new Date().toISOString().replace('T',' ').slice(0,19);
-        logEl.textContent += `[${ts}] ${msg}\n`;
+        logEl.textContent += `[${ts}] ${msg}\\n`;
         logEl.scrollTop = logEl.scrollHeight;
       };
 
       const callMaybeAsync = async (fn) => {
         const r = fn();
         return (r && typeof r.then === 'function') ? await r : r;
+      };
+
+      const disableDuring = async (btns, fn) => {
+        const arr = Array.isArray(btns) ? btns : [btns];
+        arr.forEach(b => b && (b.disabled = true));
+        try { return await fn(); } finally { arr.forEach(b => b && (b.disabled = false)); }
       };
 
       const getState = () => {
@@ -142,7 +145,7 @@
       const refresh = () => {
         const s = getState();
         stateEl.textContent = JSON.stringify(s, null, 2);
-        const typeStr = Array.isArray(s.biometricType) ? s.biometricType.join(',') : String(s.biometricType);
+        const typeStr = Array.isArray(s.biometricType) ? s.biometricType.join(',') : String(s.biometricType || '');
         pillType.textContent = 'type: ' + (typeStr || '–');
         pillAccess.textContent = 'access: ' + (s.isAccessGranted ? 'granted' : (s.isAccessRequested ? 'requested' : 'none'));
       };
@@ -159,11 +162,27 @@
       const inToken = q('#in-token');
       const inReason = q('#in-reason');
 
+      const requireInit = (handler) => async () => {
+        if (!BM) return addLog('❗ BiometricManager недоступен (откройте миниапп в MAX)');
+        if (!BM.isInited) {
+          try {
+            await callMaybeAsync(() => BM.init());
+            addLog('ℹ️ init() выполнен автоматически');
+          } catch (e) {
+            addLog('❌ init() ошибка: ' + String(e));
+            refresh();
+            return;
+          }
+          refresh();
+        }
+        return handler();
+      };
+
       btnClear.onclick = () => (logEl.textContent = '');
       btnRefresh.onclick = refresh;
 
-      btnInit.onclick = async () => {
-        if (!BM) return addLog('❗ BiometricManager недоступен');
+      btnInit.onclick = () => disableDuring(btnInit, async () => {
+        if (!BM) return addLog('❗ BiometricManager недоступен (откройте миниапп в MAX)');
         try {
           await callMaybeAsync(() => BM.init());
           addLog('✅ init() — выполнено');
@@ -171,22 +190,33 @@
           addLog('❌ init() ошибка: ' + String(e));
         }
         refresh();
-      };
+      });
 
-      btnRequest.onclick = async () => {
-        if (!BM) return addLog('❗ BiometricManager недоступен');
+      btnRequest.onclick = requireInit(() => disableDuring(btnRequest, async () => {
+        const before = getState();
+        addLog('↪️ requestAccess(): before=' + JSON.stringify(before));
         try {
           const res = await callMaybeAsync(() => BM.requestAccess());
           addLog('✅ requestAccess() → ' + JSON.stringify(res));
         } catch (e) {
           addLog('❌ requestAccess() ошибка: ' + String(e));
         }
+        const after = getState();
+        addLog('↩️ requestAccess(): after=' + JSON.stringify(after));
+        if (!after.isAccessGranted) {
+          addLog('⚠️ Доступ не выдан. Открою экран приватности MAX через openSettings() …');
+          try {
+            await callMaybeAsync(() => BM.openSettings());
+            addLog('ℹ️ openSettings() вызван (клиент может закрыть миниапп)');
+          } catch (e) {
+            addLog('❌ openSettings() ошибка: ' + String(e));
+          }
+        }
         refresh();
-      };
+      }));
 
-      btnUpdate.onclick = async () => {
-        if (!BM) return addLog('❗ BiometricManager недоступен');
-        const token = inToken.value; // пустая строка — удалить токен
+      btnUpdate.onclick = requireInit(() => disableDuring(btnUpdate, async () => {
+        const token = inToken.value; // пустая строка — удалить
         try {
           const res = await callMaybeAsync(() => BM.updateBiometricToken(token));
           addLog('✅ updateBiometricToken(' + JSON.stringify(token) + ') → ' + JSON.stringify(res));
@@ -194,13 +224,11 @@
           addLog('❌ updateBiometricToken() ошибка: ' + String(e));
         }
         refresh();
-      };
+      }));
 
-      btnAuth.onclick = async () => {
-        if (!BM) return addLog('❗ BiometricManager недоступен');
+      btnAuth.onclick = requireInit(() => disableDuring(btnAuth, async () => {
         const reason = inReason.value.trim();
         try {
-          // если клиент не поддерживает строковый аргумент — вызовем без него
           let res;
           try { res = await callMaybeAsync(() => reason ? BM.authenticate(reason) : BM.authenticate()); }
           catch { res = await callMaybeAsync(() => BM.authenticate()); }
@@ -209,40 +237,37 @@
           addLog('❌ authenticate() ошибка: ' + String(e));
         }
         refresh();
-      };
+      }));
 
-      btnSettings.onclick = async () => {
-        if (!BM) return addLog('❗ BiometricManager недоступен');
+      btnSettings.onclick = () => disableDuring(btnSettings, async () => {
+        if (!BM) return addLog('❗ BiometricManager недоступен (откройте миниапп в MAX)');
         try {
           await callMaybeAsync(() => BM.openSettings());
-          addLog('ℹ️ openSettings() — вызвано; клиент может закрыть мини-приложение');
+          addLog('ℹ️ openSettings() — вызвано; клиент может закрыть миниапп');
         } catch (e) {
           addLog('❌ openSettings() ошибка: ' + String(e));
         }
         refresh();
-      };
+      });
 
-      btnFlow.onclick = async () => {
-        // Полный флоу: init → (если нет доступа) requestAccess → (опц.) updateBiometricToken → authenticate
+      btnFlow.onclick = () => disableDuring([btnFlow, btnInit, btnRequest, btnUpdate, btnAuth], async () => {
         await btnInit.onclick();
         const s1 = getState();
         if (!s1.isAccessGranted) {
           await btnRequest.onclick();
         }
-        // Если токен ещё не сохранён — сохраним введённый (для демо)
         const s2 = getState();
         if (!s2.isBiometricTokenSaved || (inToken.value === '')) {
           await btnUpdate.onclick();
         }
-        // Проверим тип — на Android может быть ["unknown"] по спецификации
         const types = Array.isArray(s2.biometricType) ? s2.biometricType : [];
         if (types.length && !types.includes('fingerprint')) {
           addLog('⚠️ fingerprint не заявлен в biometricType (или неизвестен) — продолжаем по возможностям клиента');
         }
         await btnAuth.onclick();
-      };
+      });
 
-      // первичная отрисовка
+      // initial
       refresh();
     })();
   </script>
