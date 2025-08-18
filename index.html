@@ -79,7 +79,7 @@
         <summary>Состояние</summary>
         <pre id="state" class="pre">{}</pre>
         <div class="small">
-          Подсказка: если <b>biometricType</b> не содержит <code>fingerprint</code>, клиент может не поддерживать отпечаток; для Android тип всегда <code>["unknown"]</code> по спецификации. 1
+          Подсказка: если <b>biometricType</b> не содержит <code>fingerprint</code>, клиент может не поддерживать отпечаток; для Android тип всегда <code>["unknown"]</code> по спецификации.
         </div>
       </details>
     </div>
@@ -106,7 +106,7 @@
       const WebApp = window.WebApp;
       const BM = WebApp && WebApp.BiometricManager;
 
-      // Сообщим, что миниапп готов (рекомендовано докой)
+      // Сообщим, что миниапп готов (если поддерживается)
       try { WebApp && WebApp.ready && WebApp.ready(); } catch (e) {}
 
       pillBridge.textContent = 'bridge: ' + (BM ? 'present' : 'none');
@@ -186,7 +186,7 @@
 
       btnUpdate.onclick = async () => {
         if (!BM) return addLog('❗ BiometricManager недоступен');
-        const token = inToken.value; // пустая строка — удалить токен по доке
+        const token = inToken.value; // пустая строка — удалить токен
         try {
           const res = await callMaybeAsync(() => BM.updateBiometricToken(token));
           addLog('✅ updateBiometricToken(' + JSON.stringify(token) + ') → ' + JSON.stringify(res));
@@ -229,10 +229,22 @@
         if (!s1.isAccessGranted) {
           await btnRequest.onclick();
         }
-        // Для демонстрации: если токен ещё не сохранён — сохраним введённый
+        // Если токен ещё не сохранён — сохраним введённый (для демо)
         const s2 = getState();
         if (!s2.isBiometricTokenSaved || (inToken.value === '')) {
           await btnUpdate.onclick();
         }
-        // Проверим, заявлен ли fingerprint (для Android может быть ["unknown"])
-        const types =
+        // Проверим тип — на Android может быть ["unknown"] по спецификации
+        const types = Array.isArray(s2.biometricType) ? s2.biometricType : [];
+        if (types.length && !types.includes('fingerprint')) {
+          addLog('⚠️ fingerprint не заявлен в biometricType (или неизвестен) — продолжаем по возможностям клиента');
+        }
+        await btnAuth.onclick();
+      };
+
+      // первичная отрисовка
+      refresh();
+    })();
+  </script>
+</body>
+</html>
