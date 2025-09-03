@@ -1,7 +1,209 @@
-<script src="https://st.max.ru/js/max-web-app.js"></script>
- <script>
-  WebApp.BiometricManager.init();
-  WebApp.BiometricManager.getBiometryInfo();
-  WebApp.BiometricManager.requestAccess();
-  WebApp.BiometricManager.authenticate();
- </script>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>InitData Sender</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; padding:16px; background:#0b0f14; color:#e6edf3; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; }
+    h1 { margin:0 0 12px; font-size:20px; }
+    .card { background:#0f1720; border:1px solid #1e293b; border-radius:12px; padding:16px; margin-bottom:12px; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    input,button,select,textarea {
+      padding:10px 12px; border-radius:10px; border:1px solid #334155; background:#0b1220; color:#e6edf3;
+    }
+    button { cursor:pointer; }
+    .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; white-space:pre-wrap; word-break:break-word; font-size:12px; }
+    .muted { color:#94a3b8; font-size:12px; }
+    .ok { color:#22c55e; }
+    .err { color:#f43f5e; }
+    .kbd { padding:2px 6px; border-radius:6px; border:1px solid #334155; background:#0b1220; font-family:inherit; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+    pre { margin: 8px 0 0; }
+  </style>
+</head>
+<body>
+  <h1>InitData → POST</h1>
+
+  <div class="card">
+    <div class="row">
+      <div style="flex:1 1 420px;">
+        <div class="muted">Адрес приёма</div>
+        <input id="endpoint" type="text" value="https://example.com/collect" style="width:100%;" />
+      </div>
+      <div class="row" style="gap:6px;">
+        <button id="sendJson" title='POST application/json, body: {"initData":"..."}'>Отправить (JSON)</button>
+        <button id="sendForm" title="POST application/x-www-form-urlencoded, body: initData=...">Отправить (Form)</button>
+        <button id="copyBtn" title="Скопировать initData в буфер">Скопировать initData</button>
+        <button id="clearBtn" title="Очистить вывод">Очистить лог</button>
+      </div>
+    </div>
+    <div class="muted" style="margin-top:6px;">
+      Ручной выбор режима отправки: <span class="kbd">JSON</span> или <span class="kbd">Form</span>.
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <b>initData (raw)</b>
+      <pre id="raw" class="mono">—</pre>
+      <div class="muted" style="margin-top:8px">
+        Источник: <span id="source" class="kbd">—</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <b>Статус</b>
+      <div id="status" class="muted">Готов…</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <b>Ответ сервера</b>
+    <div class="muted">Показываем последний запрос</div>
+    <div style="margin-top:8px">
+      <div><b>Строка статуса:</b> <span id="respStatus" class="kbd">—</span></div>
+      <div style="margin-top:6px"><b>Заголовки:</b></div>
+      <pre id="respHeaders" class="mono">—</pre>
+      <div style="margin-top:6px"><b>Тело:</b></div>
+      <pre id="respBody" class="mono">—</pre>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const DEFAULT_ENDPOINT = "https://example.com/collect";
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  // --- Helpers ---
+  async function waitBridge(maxMs = 2000) {
+    const t0 = Date.now();
+    while (Date.now() - t0 < maxMs) {
+      if (window.WebApp && typeof window.WebApp.initData !== "undefined") return true;
+      await sleep(50);
+    }
+    return !!(window.WebApp && typeof window.WebApp.initData !== "undefined");
+  }
+
+  function detectInitData() {
+    // 1) bridge
+    if (typeof window.WebApp?.initData === "string" && window.WebApp.initData.length) {
+      return { value: window.WebApp.initData, source: "WebApp.initData" };
+    }
+    // 2) URL ?initData=...
+    try {
+      const usp = new URLSearchParams(location.search);
+      const fromUrl = usp.get("initData");
+      if (fromUrl) return { value: fromUrl, source: "URL ?initData=" };
+    } catch {}
+    return { value: "", source: "—" };
+  }
+
+  function getEndpoint() {
+    const v = document.getElementById("endpoint")?.value?.trim();
+    return v || DEFAULT_ENDPOINT;
+  }
+
+  function setStatus(html, type) {
+    const el = document.getElementById("status");
+    el.className = type === "ok" ? "ok" : type === "err" ? "err" : "muted";
+    el.innerHTML = html;
+  }
+
+  function showInitData() {
+    const { value, source } = detectInitData();
+    document.getElementById("raw").textContent = value || "—";
+    document.getElementById("source").textContent = source;
+    return value;
+  }
+
+  function clearResponse() {
+    document.getElementById("respStatus").textContent = "—";
+    document.getElementById("respHeaders").textContent = "—";
+    document.getElementById("respBody").textContent = "—";
+  }
+
+  function showResponse(res, text) {
+    // status line
+    const statusLine = `${res.status} ${res.statusText}`;
+    document.getElementById("respStatus").textContent = statusLine;
+
+    // headers
+    const headers = [];
+    res.headers.forEach((v, k) => headers.push(`${k}: ${v}`));
+    document.getElementById("respHeaders").textContent = headers.length ? headers.join("\n") : "—";
+
+    // body (try JSON pretty)
+    const ct = res.headers.get("content-type") || "";
+    let bodyShown = text ?? "";
+    if (ct.includes("application/json")) {
+      try {
+        bodyShown = JSON.stringify(JSON.parse(text), null, 2);
+      } catch { /* leave raw */ }
+    }
+    document.getElementById("respBody").textContent = bodyShown || "—";
+  }
+
+  async function send(mode /* "json" | "form" */) {
+    const endpoint = getEndpoint();
+    const initData = showInitData();
+    clearResponse();
+
+    if (!initData) {
+      setStatus("initData пустой — отправлять нечего.", "err");
+      return;
+    }
+
+    const isJson = mode === "json";
+    setStatus(`Отправляю ${isJson ? "JSON" : "Form"} на <code>${endpoint}</code>…`);
+
+    try {
+      const options = {
+        method: "POST",
+        mode: "cors",
+        headers: {},
+        body: ""
+      };
+
+      if (isJson) {
+        options.headers["Content-Type"] = "application/json";
+        options.body = JSON.stringify({ initData });
+      } else {
+        options.headers["Content-Type"] = "application/x-www-form-urlencoded";
+        options.body = new URLSearchParams({ initData }).toString();
+      }
+
+      const res = await fetch(endpoint, options);
+      const text = await res.text().catch(() => "");
+      showResponse(res, text);
+      setStatus(res.ok ? "✅ Успех" : `❌ Ошибка HTTP ${res.status}`, res.ok ? "ok" : "err");
+    } catch (e) {
+      setStatus(`⚠️ Сетевая ошибка: ${String(e)}`, "err");
+    }
+  }
+
+  // --- Wire UI ---
+  document.getElementById("sendJson").addEventListener("click", () => send("json"));
+  document.getElementById("sendForm").addEventListener("click", () => send("form"));
+  document.getElementById("copyBtn").addEventListener("click", async () => {
+    const v = showInitData();
+    try { await navigator.clipboard.writeText(v || ""); setStatus("Скопировано в буфер.", "ok"); }
+    catch { setStatus("Не удалось скопировать.", "err"); }
+  });
+  document.getElementById("clearBtn").addEventListener("click", () => {
+    clearResponse();
+    setStatus("Лог очищен.", "muted");
+  });
+
+  // --- Init ---
+  (async () => {
+    await waitBridge(1200);
+    showInitData();
+    setStatus("Готов.", "muted");
+  })();
+})();
+</script>
+</body>
+</html>
