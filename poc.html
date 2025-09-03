@@ -10,7 +10,7 @@
     h1 { margin:0 0 12px; font-size:20px; }
     .card { background:#0f1720; border:1px solid #1e293b; border-radius:12px; padding:16px; margin-bottom:12px; }
     .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    input,button,select,textarea {
+    input,button,textarea {
       padding:10px 12px; border-radius:10px; border:1px solid #334155; background:#0b1220; color:#e6edf3;
     }
     button { cursor:pointer; }
@@ -22,6 +22,7 @@
     .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
     @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
     pre { margin: 8px 0 0; }
+    .hidden { display:none; }
   </style>
 </head>
 <body>
@@ -34,21 +35,24 @@
         <input id="endpoint" type="text" value="https://example.com/collect" style="width:100%;" />
       </div>
       <div class="row" style="gap:6px;">
-        <button id="sendJson" title='POST application/json, body: {"initData":"..."}'>Отправить (JSON)</button>
-        <button id="sendForm" title="POST application/x-www-form-urlencoded, body: initData=...">Отправить (Form)</button>
-        <button id="copyBtn" title="Скопировать initData в буфер">Скопировать initData</button>
-        <button id="clearBtn" title="Очистить вывод">Очистить лог</button>
+        <button id="sendJson">Отправить (JSON)</button>
+        <button id="sendForm">Отправить (Form)</button>
+        <button id="copyBtn">Скопировать initData</button>
+        <button id="saveBtn">Скачать initData.txt</button>
+        <button id="clearBtn">Очистить лог</button>
       </div>
     </div>
     <div class="muted" style="margin-top:6px;">
-      Ручной выбор режима отправки: <span class="kbd">JSON</span> или <span class="kbd">Form</span>.
+      Ручной выбор: <span class="kbd">JSON</span> или <span class="kbd">Form</span>.  
+      Копирование: Clipboard API → execCommand → выделение текста.
     </div>
   </div>
 
   <div class="grid2">
     <div class="card">
       <b>initData (raw)</b>
-      <pre id="raw" class="mono">—</pre>
+      <pre id="raw" class="mono" tabindex="0">—</pre>
+      <textarea id="rawField" class="mono hidden" aria-hidden="true"></textarea>
       <div class="muted" style="margin-top:8px">
         Источник: <span id="source" class="kbd">—</span>
       </div>
@@ -62,9 +66,9 @@
 
   <div class="card">
     <b>Ответ сервера</b>
-    <div class="muted">Показываем последний запрос</div>
+    <div class="muted">Последний запрос</div>
     <div style="margin-top:8px">
-      <div><b>Строка статуса:</b> <span id="respStatus" class="kbd">—</span></div>
+      <div><b>Статус:</b> <span id="respStatus" class="kbd">—</span></div>
       <div style="margin-top:6px"><b>Заголовки:</b></div>
       <pre id="respHeaders" class="mono">—</pre>
       <div style="margin-top:6px"><b>Тело:</b></div>
@@ -77,22 +81,19 @@
   const DEFAULT_ENDPOINT = "https://example.com/collect";
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-  // --- Helpers ---
   async function waitBridge(maxMs = 2000) {
     const t0 = Date.now();
     while (Date.now() - t0 < maxMs) {
       if (window.WebApp && typeof window.WebApp.initData !== "undefined") return true;
       await sleep(50);
     }
-    return !!(window.WebApp && typeof window.WebApp.initData !== "undefined");
+    return false;
   }
 
   function detectInitData() {
-    // 1) bridge
     if (typeof window.WebApp?.initData === "string" && window.WebApp.initData.length) {
       return { value: window.WebApp.initData, source: "WebApp.initData" };
     }
-    // 2) URL ?initData=...
     try {
       const usp = new URLSearchParams(location.search);
       const fromUrl = usp.get("initData");
@@ -115,6 +116,7 @@
   function showInitData() {
     const { value, source } = detectInitData();
     document.getElementById("raw").textContent = value || "—";
+    document.getElementById("rawField").value = value || "";
     document.getElementById("source").textContent = source;
     return value;
   }
@@ -126,47 +128,28 @@
   }
 
   function showResponse(res, text) {
-    // status line
-    const statusLine = `${res.status} ${res.statusText}`;
-    document.getElementById("respStatus").textContent = statusLine;
-
-    // headers
+    document.getElementById("respStatus").textContent = `${res.status} ${res.statusText}`;
     const headers = [];
     res.headers.forEach((v, k) => headers.push(`${k}: ${v}`));
-    document.getElementById("respHeaders").textContent = headers.length ? headers.join("\n") : "—";
-
-    // body (try JSON pretty)
+    document.getElementById("respHeaders").textContent = headers.join("\\n") || "—";
+    let bodyShown = text || "";
     const ct = res.headers.get("content-type") || "";
-    let bodyShown = text ?? "";
     if (ct.includes("application/json")) {
-      try {
-        bodyShown = JSON.stringify(JSON.parse(text), null, 2);
-      } catch { /* leave raw */ }
+      try { bodyShown = JSON.stringify(JSON.parse(text), null, 2); } catch {}
     }
     document.getElementById("respBody").textContent = bodyShown || "—";
   }
 
-  async function send(mode /* "json" | "form" */) {
+  async function send(mode) {
     const endpoint = getEndpoint();
     const initData = showInitData();
     clearResponse();
-
-    if (!initData) {
-      setStatus("initData пустой — отправлять нечего.", "err");
-      return;
-    }
+    if (!initData) { setStatus("initData пустой", "err"); return; }
 
     const isJson = mode === "json";
-    setStatus(`Отправляю ${isJson ? "JSON" : "Form"} на <code>${endpoint}</code>…`);
-
+    setStatus(`Отправляю ${isJson ? "JSON" : "Form"}…`);
     try {
-      const options = {
-        method: "POST",
-        mode: "cors",
-        headers: {},
-        body: ""
-      };
-
+      const options = { method:"POST", headers:{}, body:"" };
       if (isJson) {
         options.headers["Content-Type"] = "application/json";
         options.body = JSON.stringify({ initData });
@@ -174,35 +157,66 @@
         options.headers["Content-Type"] = "application/x-www-form-urlencoded";
         options.body = new URLSearchParams({ initData }).toString();
       }
-
       const res = await fetch(endpoint, options);
-      const text = await res.text().catch(() => "");
+      const text = await res.text().catch(()=> "");
       showResponse(res, text);
-      setStatus(res.ok ? "✅ Успех" : `❌ Ошибка HTTP ${res.status}`, res.ok ? "ok" : "err");
+      setStatus(res.ok ? "✅ Успех" : `❌ Ошибка HTTP ${res.status}`, res.ok?"ok":"err");
     } catch (e) {
-      setStatus(`⚠️ Сетевая ошибка: ${String(e)}`, "err");
+      setStatus("⚠️ Сетевая ошибка: " + e, "err");
     }
   }
 
-  // --- Wire UI ---
+  async function copyInitData() {
+    const value = showInitData();
+    if (!value) { setStatus("Копировать нечего.", "err"); return; }
+
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+        setStatus("Скопировано (Clipboard API).", "ok");
+        return;
+      }
+    } catch {}
+
+    try {
+      const ta = document.getElementById("rawField");
+      ta.classList.remove("hidden");
+      ta.focus(); ta.select();
+      const ok = document.execCommand("copy");
+      ta.classList.add("hidden");
+      if (ok) { setStatus("Скопировано (execCommand).", "ok"); return; }
+    } catch {}
+
+    try {
+      const pre = document.getElementById("raw");
+      const range = document.createRange();
+      range.selectNodeContents(pre);
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(range);
+      setStatus("Выделено. Нажмите Ctrl+C.", "muted");
+    } catch {
+      setStatus("Не удалось скопировать.", "err");
+    }
+  }
+
+  function saveToFile() {
+    const value = showInitData();
+    if (!value) { setStatus("Сохранять нечего.", "err"); return; }
+    const blob = new Blob([value], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "initData.txt"; a.click();
+    setTimeout(()=> URL.revokeObjectURL(url), 0);
+    setStatus("Файл initData.txt скачан.", "ok");
+  }
+
   document.getElementById("sendJson").addEventListener("click", () => send("json"));
   document.getElementById("sendForm").addEventListener("click", () => send("form"));
-  document.getElementById("copyBtn").addEventListener("click", async () => {
-    const v = showInitData();
-    try { await navigator.clipboard.writeText(v || ""); setStatus("Скопировано в буфер.", "ok"); }
-    catch { setStatus("Не удалось скопировать.", "err"); }
-  });
-  document.getElementById("clearBtn").addEventListener("click", () => {
-    clearResponse();
-    setStatus("Лог очищен.", "muted");
-  });
+  document.getElementById("copyBtn").addEventListener("click", copyInitData);
+  document.getElementById("saveBtn").addEventListener("click", saveToFile);
+  document.getElementById("clearBtn").addEventListener("click", () => { clearResponse(); setStatus("Лог очищен.", "muted"); });
 
-  // --- Init ---
-  (async () => {
-    await waitBridge(1200);
-    showInitData();
-    setStatus("Готов.", "muted");
-  })();
+  (async () => { await waitBridge(1200); showInitData(); setStatus("Готов.", "muted"); })();
 })();
 </script>
 </body>
